@@ -15,6 +15,7 @@ func TestFormat(t *testing.T) {
 		{"https://example.com/foo", "%d", "example.com"},
 		{"https://example.com/foo", "%d%p", "example.com/foo"},
 		{"https://example.com/foo", "%s://%d%p", "https://example.com/foo"},
+		{"https://example.com/foo/bar", "%d%p", "example.com/foo"},
 
 		{"https://example.com:8080/foo", "%d", "example.com"},
 		{"https://example.com:8080/foo", "%P", "8080"},
