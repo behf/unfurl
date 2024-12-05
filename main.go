@@ -197,12 +197,26 @@ func jsonFormat(u *url.URL, _ string) []string {
 		extension = extractExtensions[0]
 	}
 
+	// Get all path levels
+	rawPath := u.RawPath
+	if rawPath == "" {
+		rawPath = u.Path
+	}
+	rawPath = strings.Trim(rawPath, "/")
+	components := strings.Split(rawPath, "/")
+
+	pathLevels := []string{}
+	for i := 1; i <= len(components); i++ {
+		pathLevel := "/" + strings.Join(components[:i], "/")
+		pathLevels = append(pathLevels, pathLevel)
+	}
+
 	newstructure := UrlStruct{
 		Scheme:        u.Scheme,
 		Opaque:        u.Opaque,
 		User:          u.User.String(),
 		Host:          u.Host,
-		Path:          u.Path,
+		Path:          strings.Join(pathLevels, ","), // Comma-separated path levels
 		RawPath:       u.RawPath,
 		RawQuery:      u.RawQuery,
 		Fragment:      u.Fragment,
@@ -281,7 +295,25 @@ func apexes(u *url.URL, f string) []string {
 // for http://sub.example.com/path it will return
 // []string{"/path"}
 func paths(u *url.URL, f string) []string {
-	return format(u, "%p")
+	rawPath := u.RawPath
+	if rawPath == "" {
+		rawPath = u.Path
+	}
+
+	// Trim leading and trailing slashes
+	rawPath = strings.Trim(rawPath, "/")
+
+	// Split the path into components
+	components := strings.Split(rawPath, "/")
+
+	// Generate all path levels
+	var pathLevels []string
+	for i := 1; i <= len(components); i++ {
+		pathLevel := "/" + strings.Join(components[:i], "/")
+		pathLevels = append(pathLevels, pathLevel)
+	}
+
+	return pathLevels
 }
 
 // format is a little bit like a special sprintf for
@@ -290,123 +322,155 @@ func paths(u *url.URL, f string) []string {
 // http://example.com/path and format string "%d%p"
 // it will return example.com/path
 func format(u *url.URL, f string) []string {
-	out := &bytes.Buffer{}
+	// Use a custom output to handle multiple results
+	var outputs []string
 
-	inFormat := false
-	for _, r := range f {
+	// Get the domain
+	domain := u.Hostname()
 
-		if r == '%' && !inFormat {
-			inFormat = true
-			continue
-		}
-
-		if !inFormat {
-			out.WriteRune(r)
-			continue
-		}
-
-		switch r {
-
-		// a literal percent rune
-		case '%':
-			out.WriteRune('%')
-
-		// the scheme; e.g. http
-		case 's':
-			out.WriteString(u.Scheme)
-
-		// the userinfo; e.g. user:pass
-		case 'u':
-			if u.User != nil {
-				out.WriteString(u.User.String())
-			}
-
-		// the domain; e.g. sub.example.com
-		case 'd':
-			out.WriteString(u.Hostname())
-
-		// the port; e.g. 8080
-		case 'P':
-			out.WriteString(u.Port())
-
-		// the subdomain; e.g. www
-		case 'S':
-			out.WriteString(extractFromDomain(u, "subdomain"))
-
-		// the root; e.g. example
-		case 'r':
-			out.WriteString(extractFromDomain(u, "root"))
-
-		// the tld; e.g. com
-		case 't':
-			out.WriteString(extractFromDomain(u, "tld"))
-
-		// the path; e.g. /users
-		case 'p':
-			out.WriteString(u.EscapedPath())
-
-		// the paths's file extension
-		case 'e':
-			paths := strings.Split(u.EscapedPath(), "/")
-			if len(paths) > 1 {
-				parts := strings.Split(paths[len(paths)-1], ".")
-				if len(parts) > 1 {
-					out.WriteString(parts[len(parts)-1])
-				}
-			} else {
-				parts := strings.Split(u.EscapedPath(), ".")
-				if len(parts) > 1 {
-					out.WriteString(parts[len(parts)-1])
-				}
-			}
-
-		// the query string; e.g. one=1&two=2
-		case 'q':
-			out.WriteString(u.RawQuery)
-
-		// the fragment / hash value; e.g. section-1
-		case 'f':
-			out.WriteString(u.Fragment)
-
-		// an @ if user info is specified
-		case '@':
-			if u.User != nil {
-				out.WriteRune('@')
-			}
-
-		// a colon if a port is specified
-		case ':':
-			if u.Port() != "" {
-				out.WriteRune(':')
-			}
-
-		// a question mark if there's a query string
-		case '?':
-			if u.RawQuery != "" {
-				out.WriteRune('?')
-			}
-
-		// a hash if there is a fragment
-		case '#':
-			if u.Fragment != "" {
-				out.WriteRune('#')
-			}
-
-		// the authority; e.g. user:pass@example.com:8080
-		case 'a':
-			out.WriteString(format(u, "%u%@%d%:%P")[0])
-
-		// default to literal
-		default:
-			// output untouched
-			out.WriteRune('%')
-			out.WriteRune(r)
-		}
-
-		inFormat = false
+	rawPath := u.RawPath
+	if rawPath == "" {
+		rawPath = u.Path
 	}
 
-	return []string{out.String()}
+	// Trim leading and trailing slashes
+	rawPath = strings.Trim(rawPath, "/")
+
+	// Split the path into components
+	components := strings.Split(rawPath, "/")
+
+	// Generate all path levels
+	var pathLevels []string
+	for i := 1; i <= len(components); i++ {
+		pathLevel := "/" + strings.Join(components[:i], "/")
+		pathLevels = append(pathLevels, pathLevel)
+	}
+
+	// If no path levels, return domain
+	if len(pathLevels) == 0 {
+		return []string{domain}
+	}
+
+	// Prepare outputs
+	for _, pathLevel := range pathLevels {
+		out := &bytes.Buffer{}
+
+		inFormat := false
+		for _, r := range f {
+			if r == '%' && !inFormat {
+				inFormat = true
+				continue
+			}
+
+			if !inFormat {
+				out.WriteRune(r)
+				continue
+			}
+
+			switch r {
+
+			// a literal percent rune
+			case '%':
+				out.WriteRune('%')
+
+			// the scheme; e.g. http
+			case 's':
+				out.WriteString(u.Scheme)
+
+			// the userinfo; e.g. user:pass
+			case 'u':
+				if u.User != nil {
+					out.WriteString(u.User.String())
+				}
+
+			// the domain; e.g. sub.example.com
+			case 'd':
+				out.WriteString(u.Hostname())
+
+			// the port; e.g. 8080
+			case 'P':
+				out.WriteString(u.Port())
+
+			// the subdomain; e.g. www
+			case 'S':
+				out.WriteString(extractFromDomain(u, "subdomain"))
+
+			// the root; e.g. example
+			case 'r':
+				out.WriteString(extractFromDomain(u, "root"))
+
+			// the tld; e.g. com
+			case 't':
+				out.WriteString(extractFromDomain(u, "tld"))
+
+			// the path; e.g. /users
+			case 'p':
+				out.WriteString(pathLevel)
+
+			// the paths's file extension
+			case 'e':
+				paths := strings.Split(u.EscapedPath(), "/")
+				if len(paths) > 1 {
+					parts := strings.Split(paths[len(paths)-1], ".")
+					if len(parts) > 1 {
+						out.WriteString(parts[len(parts)-1])
+					}
+				} else {
+					parts := strings.Split(u.EscapedPath(), ".")
+					if len(parts) > 1 {
+						out.WriteString(parts[len(parts)-1])
+					}
+				}
+
+			// the query string; e.g. one=1&two=2
+			case 'q':
+				out.WriteString(u.RawQuery)
+
+			// the fragment / hash value; e.g. section-1
+			case 'f':
+				out.WriteString(u.Fragment)
+
+			// an @ if user info is specified
+			case '@':
+				if u.User != nil {
+					out.WriteRune('@')
+				}
+
+			// a colon if a port is specified
+			case ':':
+				if u.Port() != "" {
+					out.WriteRune(':')
+				}
+
+			// a question mark if there's a query string
+			case '?':
+				if u.RawQuery != "" {
+					out.WriteRune('?')
+				}
+
+			// a hash if there is a fragment
+			case '#':
+				if u.Fragment != "" {
+					out.WriteRune('#')
+				}
+
+			// the authority; e.g. user:pass@example.com:8080
+			case 'a':
+				out.WriteString(format(u, "%u%@%d%:%P")[0])
+
+			// default to literal
+			default:
+				// output untouched
+				out.WriteRune('%')
+				out.WriteRune(r)
+			}
+
+			inFormat = false
+		}
+		outputs = append(outputs, out.String())
+	}
+
+	return outputs
 }
 
 func extractFromDomain(u *url.URL, selection string) string {
