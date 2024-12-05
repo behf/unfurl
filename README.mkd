@@ -7,7 +7,7 @@ Pull out bits of URLs provided on `stdin`
 If you have Go installed and configured:
 
 ```
-▶ go install github.com/tomnomnom/unfurl@latest
+▶ go install github.com/behf/unfurl@latest
 ```
 
 Otherwise [download the latest binary for your platform](https://github.com/tomnomnom/unfurl/releases),
